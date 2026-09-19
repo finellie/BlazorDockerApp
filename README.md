@@ -28,7 +28,10 @@ NET_Docker_Test/
         │   ├── ApplicationDbContext.cs
         │   ├── ApplicationUser.cs
         │   └── Migrations/           # Миграции Identity для PostgreSQL
-        └── Components/               # Razor-компоненты, включая Account (Identity UI)
+        ├── Components/               # Razor-компоненты, включая Account (Identity UI)
+        └── wwwroot/
+            ├── app.css               # Базовые стили приложения
+            └── custom.css            # Кастомные стили (цвет заголовков H1 — salmon)
 ```
 
 ## Деплой на сервер
@@ -114,6 +117,25 @@ dotnet run --project src/BlazorDockerApp
 ```
 Host=localhost;Port=5432;Database=blazordockerapp;Username=postgres;Password=postgres
 ```
+
+## Стили
+
+Кастомные стили приложения находятся в `src/BlazorDockerApp/wwwroot/custom.css` и подключаются в `Components/App.razor` после `app.css`:
+
+```html
+<link rel="stylesheet" href="@Assets["app.css"]" />
+<link rel="stylesheet" href="@Assets["custom.css"]" />
+```
+
+Текущее содержимое `custom.css` задаёт цвет заголовков `H1`:
+
+```css
+h1 {
+    color: salmon;
+}
+```
+
+> Blazor добавляет к именам статических файлов отпечаток содержимого (например, `custom.kjr289qayw.css`). Это нормально — ссылка в HTML формируется автоматически через `@Assets[...]`, а при изменении файла отпечаток меняется, что сбрасывает кэш браузера.
 
 ## Авторизация (Identity)
 
