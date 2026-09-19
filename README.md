@@ -1,0 +1,114 @@
+# BlazorDockerApp
+
+Стандартное решение **Blazor Server (.NET 10)** с авторизацией **ASP.NET Core Identity**, базой данных **PostgreSQL** и запуском в **Docker Compose** (два контейнера: Blazor + Postgres).
+
+## Структура решения
+
+```
+NET_Docker_Test/
+├── BlazorDockerApp.slnx              # Файл решения (новый формат slnx)
+├── docker-compose.yml                # Два сервиса: web (Blazor) + db (Postgres)
+├── README.md
+└── src/
+    └── BlazorDockerApp/
+        ├── BlazorDockerApp.csproj    # net10.0, Npgsql.EntityFrameworkCore.PostgreSQL
+        ├── Dockerfile                # Multi-stage build (sdk:10.0 → aspnet:10.0)
+        ├── .dockerignore
+        ├── Program.cs                # Identity + Npgsql + авто-миграции при старте
+        ├── appsettings.json          # Строка подключения к PostgreSQL
+        ├── Data/
+        │   ├── ApplicationDbContext.cs
+        │   ├── ApplicationUser.cs
+        │   └── Migrations/           # Миграции Identity для PostgreSQL
+        └── Components/               # Razor-компоненты, включая Account (Identity UI)
+```
+
+## Требования
+
+- .NET SDK 10.0
+- Docker Desktop (с Docker Compose v2+)
+
+## Запуск в Docker
+
+```powershell
+docker compose up -d --build
+```
+
+Приложение будет доступно по адресу: **http://localhost:9000**
+
+| Сервис | Контейнер | Порт (хост → контейнер) |
+|--------|-----------|--------------------------|
+| Blazor | `blazordockerapp-web` | `9000 → 8080` |
+| Postgres | `blazordockerapp-db` | не публикуется (только внутри сети) |
+
+> **Примечание:** порт хоста `9000` выбран потому, что диапазоны `8063–8162` и другие зарезервированы Windows (Hyper-V/WSL). Если порт занят, измените маппинг в `docker-compose.yml`.
+
+### Сеть
+
+Оба контейнера подключены к одной явно объявленной bridge-сети `test-app-network`. Связь обеспечивается встроенным DNS Docker: имя сервиса `db` резолвится в IP контейнера Postgres, поэтому в строке подключения используется `Host=db`.
+
+Postgres **не публикует порт на хост** — он доступен только контейнеру `web` по внутренней сети. Если нужен доступ к БД с хоста (pgAdmin, локальный `dotnet run`), добавьте в сервис `db`:
+
+```yaml
+    ports:
+      - "5432:5432"
+```
+
+### Полезные команды
+
+```powershell
+docker compose ps                 # статус контейнеров
+docker compose logs -f web        # логи приложения
+docker compose logs -f db         # логи PostgreSQL
+docker compose down               # остановить
+docker compose down -v            # остановить и удалить данные БД (volume)
+```
+
+## Запуск локально (без Docker)
+
+Требуется PostgreSQL на `localhost:5432`. Поскольку контейнер `db` не публикует порт на хост, для локального запуска добавьте маппинг `5432:5432` в сервис `db` (см. раздел «Сеть») и поднимите только БД:
+
+```powershell
+docker compose up -d db
+```
+
+```powershell
+dotnet run --project src/BlazorDockerApp
+```
+
+Строка подключения по умолчанию (в `appsettings.json`):
+
+```
+Host=localhost;Port=5432;Database=blazordockerapp;Username=postgres;Password=postgres
+```
+
+## Авторизация (Identity)
+
+- Используется `Microsoft.AspNetCore.Identity.EntityFrameworkCore` с `IdentityDbContext<ApplicationUser>`.
+- Схема БД создаётся автоматически при старте приложения (`dbContext.Database.Migrate()` в `Program.cs`).
+- Доступны страницы `/Account/Register`, `/Account/Login`, `/Account/Manage`.
+- По умолчанию `SignIn.RequireConfirmedAccount = true`. Для локальной разработки без почтового сервиса можно отключить это в `Program.cs`:
+
+```csharp
+options.SignIn.RequireConfirmedAccount = false;
+```
+
+## Работа с миграциями EF Core
+
+```powershell
+# Добавить новую миграцию
+dotnet ef migrations add <Name> --project src/BlazorDockerApp --output-dir Data/Migrations
+
+# Применить миграции вручную (обычно не требуется — применяются при старте)
+dotnet ef database update --project src/BlazorDockerApp
+```
+
+## Конфигурация
+
+| Параметр | Значение по умолчанию | Где задаётся |
+|----------|----------------------|--------------|
+| `ConnectionStrings__DefaultConnection` | `Host=db;...` | `docker-compose.yml` (переопределяет `appsettings.json`) |
+| `ASPNETCORE_URLS` | `http://+:8080` | `Dockerfile` / `docker-compose.yml` |
+| `ASPNETCORE_ENVIRONMENT` | `Production` | `docker-compose.yml` |
+
+> Для продакшена замените пароль `postgres` на секрет (например, через Docker secrets или переменные окружения) и включите HTTPS.

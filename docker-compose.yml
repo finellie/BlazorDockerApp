@@ -1,0 +1,43 @@
+services:
+  db:
+    image: postgres:17-alpine
+    container_name: blazordockerapp-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: blazordockerapp
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d blazordockerapp"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - test-app-network
+
+  web:
+    build:
+      context: ./src/BlazorDockerApp
+      dockerfile: Dockerfile
+    container_name: blazordockerapp-web
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ASPNETCORE_URLS: http://+:8080
+      ConnectionStrings__DefaultConnection: "Host=db;Port=5432;Database=blazordockerapp;Username=postgres;Password=postgres"
+    ports:
+      - "9000:8080"
+    networks:
+      - test-app-network
+
+volumes:
+  postgres-data:
+
+networks:
+  test-app-network:
+    driver: bridge

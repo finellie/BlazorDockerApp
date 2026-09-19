@@ -1,0 +1,24 @@
+## .NET / Visual Studio
+[Bb]in/
+[Oo]bj/
+.vs/
+*.user
+*.suo
+
+## Rider
+.idea/
+
+## VS Code
+.vscode/
+
+## SQLite (legacy)
+*.db
+*.db-shm
+*.db-wal
+
+## Docker
+*.tar
+
+## OS
+.DS_Store
+Thumbs.db
