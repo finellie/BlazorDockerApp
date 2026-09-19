@@ -30,6 +30,12 @@ NET_Docker_Test/
 
 ## Запуск в Docker
 
+Скопируйте шаблон переменных окружения и при необходимости измените значения:
+
+```powershell
+Copy-Item .env.example .env
+```
+
 ```powershell
 docker compose up -d --build
 ```
@@ -38,10 +44,25 @@ docker compose up -d --build
 
 | Сервис | Контейнер | Порт (хост → контейнер) |
 |--------|-----------|--------------------------|
-| Blazor | `blazordockerapp-web` | `9000 → 8080` |
+| Blazor | `blazordockerapp-web` | `${WEB_PORT}` → `8080` |
 | Postgres | `blazordockerapp-db` | не публикуется (только внутри сети) |
 
-> **Примечание:** порт хоста `9000` выбран потому, что диапазоны `8063–8162` и другие зарезервированы Windows (Hyper-V/WSL). Если порт занят, измените маппинг в `docker-compose.yml`.
+> **Примечание:** порт хоста `9000` выбран потому, что диапазоны `8063–8162` и другие зарезервированы Windows (Hyper-V/WSL). Если порт занят, измените `WEB_PORT` в `.env`.
+
+### Переменные окружения (`.env`)
+
+Все настройки Postgres и порт приложения вынесены в файл `.env` в корне репозитория:
+
+| Переменная | Назначение | Значение по умолчанию |
+|------------|-----------|----------------------|
+| `POSTGRES_DB` | Имя базы данных | `blazordockerapp` |
+| `POSTGRES_USER` | Пользователь БД | `postgres` |
+| `POSTGRES_PASSWORD` | Пароль БД | `postgres` |
+| `WEB_PORT` | Порт приложения на хосте | `9000` |
+
+Файл `.env` **не коммитится** (добавлен в `.gitignore`), так как содержит пароли. В репозитории хранится только шаблон `.env.example`.
+
+> Для продакшена обязательно смените `POSTGRES_PASSWORD` на надёжный секрет.
 
 ### Сеть
 
@@ -107,8 +128,10 @@ dotnet ef database update --project src/BlazorDockerApp
 
 | Параметр | Значение по умолчанию | Где задаётся |
 |----------|----------------------|--------------|
-| `ConnectionStrings__DefaultConnection` | `Host=db;...` | `docker-compose.yml` (переопределяет `appsettings.json`) |
+| `POSTGRES_DB` / `POSTGRES_USER` / `POSTGRES_PASSWORD` | `blazordockerapp` / `postgres` / `postgres` | `.env` |
+| `WEB_PORT` | `9000` | `.env` |
+| `ConnectionStrings__DefaultConnection` | `Host=db;...` | `docker-compose.yml` (собирается из переменных `.env`) |
 | `ASPNETCORE_URLS` | `http://+:8080` | `Dockerfile` / `docker-compose.yml` |
 | `ASPNETCORE_ENVIRONMENT` | `Production` | `docker-compose.yml` |
 
-> Для продакшена замените пароль `postgres` на секрет (например, через Docker secrets или переменные окружения) и включите HTTPS.
+> Для продакшена обязательно смените `POSTGRES_PASSWORD` в `.env` на надёжный секрет и включите HTTPS.
