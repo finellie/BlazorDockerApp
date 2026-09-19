@@ -7,8 +7,16 @@
 ```
 NET_Docker_Test/
 ├── BlazorDockerApp.slnx              # Файл решения (новый формат slnx)
-├── docker-compose.yml                # Два сервиса: web (Blazor) + db (Postgres)
+├── docker-compose.yml                # Два сервиса: web (Blazor) + db (Postgres) — для разработки
+├── .env.example                      # Шаблон переменных окружения
 ├── README.md
+├── .github/
+│   └── workflows/
+│       └── docker-publish.yml        # CI: сборка и публикация образа в ghcr.io
+├── deploy/                           # Файлы для деплоя на сервер через Dockhand
+│   ├── docker-compose.yml            # Compose для сервера (образ из ghcr.io)
+│   ├── .env.example                  # Шаблон переменных для сервера
+│   └── README.md                     # Инструкция по деплою
 └── src/
     └── BlazorDockerApp/
         ├── BlazorDockerApp.csproj    # net10.0, Npgsql.EntityFrameworkCore.PostgreSQL
@@ -22,6 +30,10 @@ NET_Docker_Test/
         │   └── Migrations/           # Миграции Identity для PostgreSQL
         └── Components/               # Razor-компоненты, включая Account (Identity UI)
 ```
+
+## Деплой на сервер
+
+Для развёртывания на Ubuntu-сервере через панель **Dockhand** используйте файлы из папки [`deploy/`](deploy/README.md). Образ приложения собирается в GitHub Actions и публикуется в ghcr.io — на сервере сборка не требуется.
 
 ## Требования
 

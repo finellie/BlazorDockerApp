@@ -1,0 +1,50 @@
+# Docker Compose для деплоя через Dockhand.
+#
+# Образ приложения берётся готовым из GitHub Container Registry (ghcr.io),
+# сборка на сервере не выполняется. Образ публикуется workflow
+# .github/workflows/docker-publish.yml при push в main.
+#
+# Использование в Dockhand: укажите этот файл как Compose file,
+# а deploy/.env.example (скопированный в .env) — как env file.
+
+services:
+  db:
+    image: postgres:17-alpine
+    container_name: blazordockerapp-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - test-app-network
+
+  web:
+    image: ${APP_IMAGE}
+    container_name: blazordockerapp-web
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ASPNETCORE_URLS: http://+:8080
+      ConnectionStrings__DefaultConnection: "Host=db;Port=5432;Database=${POSTGRES_DB};Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD}"
+    ports:
+      - "${WEB_PORT}:8080"
+    networks:
+      - test-app-network
+
+volumes:
+  postgres-data:
+
+networks:
+  test-app-network:
+    driver: bridge
