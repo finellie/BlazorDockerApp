@@ -72,6 +72,7 @@ jobs:
         env:
           DOCKHAND_WEBHOOK_URL: ${{ secrets.DOCKHAND_WEBHOOK_URL }}
           DOCKHAND_WEBHOOK_TOKEN: ${{ secrets.DOCKHAND_WEBHOOK_TOKEN }}
+          DOCKHAND_WEBHOOK_SECRET: ${{ secrets.DOCKHAND_WEBHOOK_SECRET }}
         run: |
           if [ -z "$DOCKHAND_WEBHOOK_URL" ]; then
             echo "::warning::DOCKHAND_WEBHOOK_URL secret is not set — skipping auto-deploy."
@@ -97,7 +98,12 @@ jobs:
             exit 1
           fi
 
-          # Build auth headers. Dockhand may require a bearer token or a custom header.
+          # Build the JSON payload once so the signature matches the exact bytes sent.
+          payload=$(printf '{"image":"%s/%s:latest","digest":"%s","sha":"%s"}' \
+            "${{ env.REGISTRY }}" "${{ env.IMAGE_NAME }}" \
+            "${{ needs.build-and-push.outputs.digest }}" "${{ github.sha }}")
+
+          # Build auth headers.
           auth_args=()
           if [ -n "$DOCKHAND_WEBHOOK_TOKEN" ]; then
             auth_args+=(-H "Authorization: Bearer $DOCKHAND_WEBHOOK_TOKEN")
@@ -106,12 +112,21 @@ jobs:
             echo "No DOCKHAND_WEBHOOK_TOKEN set — sending unauthenticated request."
           fi
 
+          # Build the HMAC-SHA256 signature header (GitHub-style X-Hub-Signature-256).
+          if [ -n "$DOCKHAND_WEBHOOK_SECRET" ]; then
+            signature=$(printf '%s' "$payload" | openssl dgst -sha256 -hmac "$DOCKHAND_WEBHOOK_SECRET" | sed 's/^.*= //')
+            auth_args+=(-H "X-Hub-Signature-256: sha256=$signature")
+            echo "Using HMAC-SHA256 signature (X-Hub-Signature-256)."
+          else
+            echo "No DOCKHAND_WEBHOOK_SECRET set — sending unsigned request."
+          fi
+
           echo "Triggering Dockhand webhook..."
           http_code=$(curl -sS -o /tmp/response.txt -w "%{http_code}" \
             -X POST "$DOCKHAND_WEBHOOK_URL" \
             -H "Content-Type: application/json" \
             "${auth_args[@]}" \
-            -d "{\"image\":\"${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest\",\"digest\":\"${{ needs.build-and-push.outputs.digest }}\",\"sha\":\"${{ github.sha }}\"}" \
+            -d "$payload" \
             || echo "000")
 
           echo "HTTP status: $http_code"
@@ -125,7 +140,7 @@ jobs:
 
           if [ "$http_code" = "401" ] || [ "$http_code" = "403" ]; then
             echo "::error::Dockhand rejected the request (HTTP $http_code)."
-            echo "Set the DOCKHAND_WEBHOOK_TOKEN secret with a valid Dockhand API token."
+            echo "Check DOCKHAND_WEBHOOK_TOKEN and DOCKHAND_WEBHOOK_SECRET."
             exit 1
           fi
 
