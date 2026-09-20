@@ -17,12 +17,16 @@ NET_Docker_Test/
 │   ├── docker-compose.yml            # Compose для сервера (образ из ghcr.io)
 │   ├── .env.example                  # Шаблон переменных для сервера
 │   └── README.md                     # Инструкция по деплою
+├── docs/
+│   └── skills/
+│       └── deploy-and-verify/        # Skill: как обновить репозиторий и проверить деплой
+│           └── SKILL.md
 └── src/
     └── BlazorDockerApp/
         ├── BlazorDockerApp.csproj    # net10.0, Npgsql.EntityFrameworkCore.PostgreSQL
         ├── Dockerfile                # Multi-stage build (sdk:10.0 → aspnet:10.0)
         ├── .dockerignore
-        ├── Program.cs                # Identity + Npgsql + авто-миграции при старте
+        ├── Program.cs                # Identity + Npgsql + авто-миграции + health endpoints
         ├── appsettings.json          # Строка подключения к PostgreSQL
         ├── Data/
         │   ├── ApplicationDbContext.cs
@@ -31,12 +35,24 @@ NET_Docker_Test/
         ├── Components/               # Razor-компоненты, включая Account (Identity UI)
         └── wwwroot/
             ├── app.css               # Базовые стили приложения
-            └── custom.css            # Кастомные стили (цвет заголовков H1 — goldenrod)
+            └── custom.css            # Кастомные стили (цвет заголовков H1)
 ```
 
 ## Деплой на сервер
 
 Для развёртывания на Ubuntu-сервере через панель **Dockhand** используйте файлы из папки [`deploy/`](deploy/README.md). Образ приложения собирается в GitHub Actions и публикуется в ghcr.io — на сервере сборка не требуется.
+
+Полная цепочка доставки:
+
+```
+git push → GitHub Actions → ghcr.io → webhook → Dockhand → Ubuntu
+```
+
+> **Важно:** в Dockhand должна быть включена опция **«Always redeploy the stack on webhook or scheduled sync, even if no git changes are detected»**. Без неё Dockhand может пропустить пересоздание контейнеров, и приложение останется на старой версии — при этом CI покажет `success`. Подробнее в [`deploy/README.md`](deploy/README.md).
+
+### Skill для обновления и проверки
+
+В [`docs/skills/deploy-and-verify/`](docs/skills/deploy-and-verify/SKILL.md) описан пошаговый процесс: коммит → push → отслеживание CI → проверка webhook → подтверждение, что изменение реально на сервере. Включает диагностику типовых сбоев (пропущенный деплой, ошибки авторизации webhook).
 
 ## Требования
 

@@ -61,12 +61,41 @@ Ubuntu-сервер + Dockhand  ──►  docker compose pull && up -d
 
 > **Важно:** webhook срабатывает только при push в `main`. Для тегов `v*` образ публикуется, но деплой не запускается — это защита от случайного деплоя по тегу.
 
+### ⚠️ Обязательная настройка Dockhand: «Always redeploy»
+
+В Dockhand **включите** опцию:
+
+> **Always redeploy the stack on webhook or scheduled sync, even if no git changes are detected.**
+
+**Без неё деплой может молча не примениться.** Dockhand сравнивает digest образа и, если он уже подтянут в локальный кэш, отвечает:
+
+```json
+{"success":true,"output":"No changes detected, skipping redeploy","skipped":true}
+```
+
+Webhook при этом возвращает `200`, CI показывает `success` — но контейнеры **не пересоздаются**, и приложение продолжает работать со старой версией. Это самая коварная ошибка в цепочке: все индикаторы зелёные, а изменения не видны.
+
+**Как отличить реальный деплой от пропуска** — по выводу Dockhand в логе CI:
+
+| Вывод | Значение |
+|-------|----------|
+| `No changes detected, skipping redeploy` | ❌ Деплой пропущен, контейнеры не обновлены |
+| `Image ... Pulled` → `Container ... Recreated` → `Started` | ✅ Реальный деплой выполнен |
+
+Косвенный признак: реальный деплой занимает **15–20 с**, пропуск — **~5 с**.
+
 ### Ручной деплой
 
 Если автодеплой не настроен, обновляйте вручную:
 
 ```bash
 docker compose pull && docker compose up -d
+```
+
+Принудительное пересоздание (если Dockhand пропустил деплой):
+
+```bash
+docker compose pull && docker compose up -d --force-recreate
 ```
 
 ## Health-проверки
