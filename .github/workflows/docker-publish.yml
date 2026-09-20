@@ -78,15 +78,39 @@ jobs:
             exit 0
           fi
 
+          # Validate the URL shape without leaking the secret value.
+          case "$DOCKHAND_WEBHOOK_URL" in
+            http://*|https://*) ;;
+            *)
+              echo "::error::DOCKHAND_WEBHOOK_URL must start with http:// or https://"
+              echo "Current value starts with: '$(printf '%s' "$DOCKHAND_WEBHOOK_URL" | cut -c1-8)...'"
+              exit 1
+              ;;
+          esac
+
+          host=$(printf '%s' "$DOCKHAND_WEBHOOK_URL" | sed -E 's#^https?://([^/:]+).*#\1#')
+          echo "Webhook host: $host"
+
+          if ! getent hosts "$host" >/dev/null 2>&1; then
+            echo "::error::Cannot resolve host '$host'. Check the webhook URL (typo? missing scheme? internal-only hostname?)."
+            exit 1
+          fi
+
           echo "Triggering Dockhand webhook..."
           http_code=$(curl -sS -o /tmp/response.txt -w "%{http_code}" \
             -X POST "$DOCKHAND_WEBHOOK_URL" \
             -H "Content-Type: application/json" \
-            -d "{\"image\":\"${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest\",\"digest\":\"${{ needs.build-and-push.outputs.digest }}\",\"sha\":\"${{ github.sha }}\"}")
+            -d "{\"image\":\"${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest\",\"digest\":\"${{ needs.build-and-push.outputs.digest }}\",\"sha\":\"${{ github.sha }}\"}" \
+            || echo "000")
 
           echo "HTTP status: $http_code"
           echo "Response:"
-          cat /tmp/response.txt || true
+          cat /tmp/response.txt 2>/dev/null || true
+
+          if [ "$http_code" = "000" ]; then
+            echo "::error::Could not reach the Dockhand webhook (DNS or connection failure)."
+            exit 1
+          fi
 
           if [ "$http_code" -lt 200 ] || [ "$http_code" -ge 300 ]; then
             echo "::error::Dockhand webhook returned HTTP $http_code"
