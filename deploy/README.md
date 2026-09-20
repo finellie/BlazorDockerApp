@@ -32,14 +32,19 @@ Ubuntu-сервер + Dockhand  ──►  docker compose pull && up -d
 
 ### Настройка
 
-1. В Dockhand создайте webhook для вашего стека (раздел **Webhooks** / **Auto-deploy**) и скопируйте URL.
+1. В Dockhand создайте webhook для вашего стека (раздел **Webhooks** / **Auto-deploy**) и скопируйте URL и signing secret.
 2. В GitHub откройте: **Settings → Secrets and variables → Actions → New repository secret**
 3. Добавьте секреты:
 
 | Секрет | Обязателен | Значение |
 |--------|-----------|----------|
 | `DOCKHAND_WEBHOOK_URL` | да | Полный URL webhook, начинается с `http://` или `https://` |
-| `DOCKHAND_WEBHOOK_TOKEN` | если Dockhand требует авторизацию | API-токен Dockhand (отправляется как `Authorization: Bearer <token>`) |
+| `DOCKHAND_WEBHOOK_TOKEN` | да | API-токен Dockhand → отправляется как `Authorization: Bearer <token>` |
+| `DOCKHAND_WEBHOOK_SECRET` | да | Signing secret webhook → HMAC-SHA256 подпись тела в заголовке `X-Hub-Signature-256` |
+
+> **Важно:** Dockhand проверяет **и** токен, **и** подпись. Если задать только один из них, запрос будет отклонён с `401`:
+> - без токена → `{"error":"Authentication required"}`
+> - без подписи → `{"error":"Invalid webhook signature"}`
 
 > **Частая ошибка:** в `DOCKHAND_WEBHOOK_URL` попадает токен или ID стека вместо URL. Workflow проверяет схему и сообщит об ошибке: `must start with http:// or https://`.
 
@@ -50,8 +55,8 @@ Ubuntu-сервер + Dockhand  ──►  docker compose pull && up -d
 | `DOCKHAND_WEBHOOK_URL` **не задан** | Шаг выводит предупреждение и завершается успешно — сборка не ломается |
 | URL не начинается с `http(s)://` | Шаг падает с `::error::` и показывает первые 8 символов значения |
 | Хост не резолвится | Шаг падает с `::error::` и указывает имя хоста |
-| Ответ `401` / `403` | Шаг падает с подсказкой задать `DOCKHAND_WEBHOOK_TOKEN` |
-| Ответ `2xx` | Деплой запущен, в логе `::notice::` |
+| Ответ `401` / `403` | Шаг падает с подсказкой проверить токен и signing secret |
+| Ответ `2xx` | Деплой запущен, в логе `::notice::` и вывод Dockhand |
 | Pull request | Шаг деплоя **не выполняется** (образ не пушится) |
 
 > **Важно:** webhook срабатывает только при push в `main`. Для тегов `v*` образ публикуется, но деплой не запускается — это защита от случайного деплоя по тегу.
@@ -164,7 +169,8 @@ docker compose up -d
 | Секрет | Обязателен | Назначение |
 |--------|-----------|------------|
 | `DOCKHAND_WEBHOOK_URL` | да (для автодеплоя) | URL webhook Dockhand. Без него деплой пропускается |
-| `DOCKHAND_WEBHOOK_TOKEN` | если Dockhand требует авторизацию | API-токен, отправляется как `Authorization: Bearer <token>` |
+| `DOCKHAND_WEBHOOK_TOKEN` | да | API-токен, отправляется как `Authorization: Bearer <token>` |
+| `DOCKHAND_WEBHOOK_SECRET` | да | Signing secret, HMAC-SHA256 подпись тела в `X-Hub-Signature-256` |
 
 ## Важные замечания
 
