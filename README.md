@@ -147,7 +147,7 @@ Host=localhost;Port=5432;Database=blazordockerapp;Username=postgres;Password=pos
 
 ```css
 h1 {
-    color: #FF0000;
+    color: #0000FF;
 }
 ```
 
