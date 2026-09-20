@@ -31,7 +31,7 @@ NET_Docker_Test/
         ├── Components/               # Razor-компоненты, включая Account (Identity UI)
         └── wwwroot/
             ├── app.css               # Базовые стили приложения
-            └── custom.css            # Кастомные стили (цвет заголовков H1 — salmon)
+            └── custom.css            # Кастомные стили (цвет заголовков H1 — goldenrod)
 ```
 
 ## Деплой на сервер
@@ -147,7 +147,7 @@ Host=localhost;Port=5432;Database=blazordockerapp;Username=postgres;Password=pos
 
 ```css
 h1 {
-    color: salmon;
+    color: goldenrod;
 }
 ```
 
