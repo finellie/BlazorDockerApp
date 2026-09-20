@@ -19,9 +19,12 @@ jobs:
       contents: read
       packages: write
 
+    outputs:
+      digest: ${{ steps.build.outputs.digest }}
+
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -47,6 +50,7 @@ jobs:
             type=raw,value=latest,enable={{is_default_branch}}
 
       - name: Build and push
+        id: build
         uses: docker/build-push-action@v6
         with:
           context: ./src/BlazorDockerApp
@@ -56,3 +60,37 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+  # Notify Dockhand to pull the new image and recreate the stack.
+  # Runs only after a successful push to the default branch (not on PRs).
+  deploy:
+    needs: build-and-push
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger Dockhand deploy webhook
+        env:
+          DOCKHAND_WEBHOOK_URL: ${{ secrets.DOCKHAND_WEBHOOK_URL }}
+        run: |
+          if [ -z "$DOCKHAND_WEBHOOK_URL" ]; then
+            echo "::warning::DOCKHAND_WEBHOOK_URL secret is not set — skipping auto-deploy."
+            echo "Add it in: Settings → Secrets and variables → Actions → New repository secret"
+            exit 0
+          fi
+
+          echo "Triggering Dockhand webhook..."
+          http_code=$(curl -sS -o /tmp/response.txt -w "%{http_code}" \
+            -X POST "$DOCKHAND_WEBHOOK_URL" \
+            -H "Content-Type: application/json" \
+            -d "{\"image\":\"${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest\",\"digest\":\"${{ needs.build-and-push.outputs.digest }}\",\"sha\":\"${{ github.sha }}\"}")
+
+          echo "HTTP status: $http_code"
+          echo "Response:"
+          cat /tmp/response.txt || true
+
+          if [ "$http_code" -lt 200 ] || [ "$http_code" -ge 300 ]; then
+            echo "::error::Dockhand webhook returned HTTP $http_code"
+            exit 1
+          fi
+
+          echo "::notice::Dockhand deploy triggered successfully (HTTP $http_code)"

@@ -38,6 +38,10 @@ builder.Services.AddIdentityCore<ApplicationUser>(options =>
 
 builder.Services.AddSingleton<IEmailSender<ApplicationUser>, IdentityNoOpEmailSender>();
 
+// Health checks: /health (liveness) and /health/ready (readiness, includes the database).
+builder.Services.AddHealthChecks()
+    .AddDbContextCheck<ApplicationDbContext>("database");
+
 var app = builder.Build();
 
 // Apply pending EF Core migrations automatically (creates the Identity schema in PostgreSQL).
@@ -62,6 +66,19 @@ app.UseStatusCodePagesWithReExecute("/not-found", createScopeForStatusCodePages:
 app.UseHttpsRedirection();
 
 app.UseAntiforgery();
+
+// Health endpoints are mapped before the HTTPS redirect applies to them,
+// so container healthchecks can probe them over plain HTTP.
+// /health        — liveness: the process is up (no external dependencies).
+// /health/ready  — readiness: the app can serve traffic (includes the database).
+app.MapHealthChecks("/health", new Microsoft.AspNetCore.Diagnostics.HealthChecks.HealthCheckOptions
+{
+    Predicate = _ => false
+});
+app.MapHealthChecks("/health/ready", new Microsoft.AspNetCore.Diagnostics.HealthChecks.HealthCheckOptions
+{
+    Predicate = check => check.Tags.Contains("database") || check.Name == "database"
+});
 
 app.MapStaticAssets();
 app.MapRazorComponents<App>()

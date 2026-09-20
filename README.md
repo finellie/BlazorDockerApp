@@ -55,14 +55,14 @@ Copy-Item .env.example .env
 docker compose up -d --build
 ```
 
-Приложение будет доступно по адресу: **http://localhost:9000**
+Приложение будет доступно по адресу: **http://localhost:9115**
 
 | Сервис | Контейнер | Порт (хост → контейнер) |
 |--------|-----------|--------------------------|
 | Blazor | `blazordockerapp-web` | `${WEB_PORT}` → `8080` |
 | Postgres | `blazordockerapp-db` | не публикуется (только внутри сети) |
 
-> **Примечание:** порт хоста `9000` выбран потому, что диапазоны `8063–8162` и другие зарезервированы Windows (Hyper-V/WSL). Если порт занят, измените `WEB_PORT` в `.env`.
+> **Примечание:** порт хоста `9115` выбран потому, что диапазоны `8063–8162` и другие зарезервированы Windows (Hyper-V/WSL). Если порт занят, измените `WEB_PORT` в `.env`.
 
 ### Переменные окружения (`.env`)
 
@@ -73,7 +73,7 @@ docker compose up -d --build
 | `POSTGRES_DB` | Имя базы данных | `blazordockerapp` |
 | `POSTGRES_USER` | Пользователь БД | `postgres` |
 | `POSTGRES_PASSWORD` | Пароль БД | `postgres` |
-| `WEB_PORT` | Порт приложения на хосте | `9000` |
+| `WEB_PORT` | Порт приложения на хосте | `9115` |
 
 Файл `.env` **не коммитится** (добавлен в `.gitignore`), так как содержит пароли. В репозитории хранится только шаблон `.env.example`.
 
@@ -88,6 +88,22 @@ Postgres **не публикует порт на хост** — он досту�
 ```yaml
     ports:
       - "5432:5432"
+```
+
+### Health-проверки
+
+Приложение предоставляет два endpoint'а:
+
+| Endpoint | Назначение | Проверяет |
+|----------|-----------|-----------|
+| `/health` | Liveness — процесс жив | ничего (без внешних зависимостей) |
+| `/health/ready` | Readiness — готов обслуживать трафик | подключение к PostgreSQL |
+
+Контейнер `web` использует `/health/ready` в своём healthcheck, поэтому `docker compose ps` покажет `healthy` только когда приложение **и** база готовы к работе.
+
+```powershell
+curl http://localhost:9115/health        # 200 Healthy
+curl http://localhost:9115/health/ready  # 200 Healthy (503 если БД недоступна)
 ```
 
 ### Полезные команды
@@ -163,7 +179,7 @@ dotnet ef database update --project src/BlazorDockerApp
 | Параметр | Значение по умолчанию | Где задаётся |
 |----------|----------------------|--------------|
 | `POSTGRES_DB` / `POSTGRES_USER` / `POSTGRES_PASSWORD` | `blazordockerapp` / `postgres` / `postgres` | `.env` |
-| `WEB_PORT` | `9000` | `.env` |
+| `WEB_PORT` | `9115` | `.env` |
 | `ConnectionStrings__DefaultConnection` | `Host=db;...` | `docker-compose.yml` (собирается из переменных `.env`) |
 | `ASPNETCORE_URLS` | `http://+:8080` | `Dockerfile` / `docker-compose.yml` |
 | `ASPNETCORE_ENVIRONMENT` | `Production` | `docker-compose.yml` |
